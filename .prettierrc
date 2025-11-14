@@ -4,19 +4,7 @@
   "semi": true,
   "singleQuote": true,
   "trailingComma": "all",
-  "importOrder": [
-    "^react$",
-    "",
-    "^next",
-    "",
-    "<THIRD_PARTY_MODULES>",
-    "",
-    "^@project/(.*)$",
-    "",
-    "^@/(.*)$",
-    "",
-    "^[./]"
-  ],
+  "importOrder": ["^react$", "", "^next", "", "<THIRD_PARTY_MODULES>", "", "^@wasm/(.*)$", "", "^@/(.*)$", "", "^[./]"],
   "importOrderTypeScriptVersion": "5.9.3",
   "tailwindStylesheet": "./src/app/globals.css",
   "plugins": ["@ianvs/prettier-plugin-sort-imports", "prettier-plugin-tailwindcss"]
