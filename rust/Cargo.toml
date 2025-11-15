@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "crates/indexer/indexer-core",
+    "crates/indexer/indexer-service",
+    "crates/web/wasm",
+]
+resolver = "2"
