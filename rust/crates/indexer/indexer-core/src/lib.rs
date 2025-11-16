@@ -76,13 +76,22 @@ pub fn parse_viewing_key(
     UnifiedFullViewingKey::decode(&params, encoded).map_err(CoreError::from)
 }
 
-/// Parses raw transaction bytes into a [`Transaction`].
-///
-/// Note: without context we assume NU5+ semantics (branch ID [`BranchId::Nu5`]).
-pub fn parse_transaction(bytes: &[u8]) -> Result<Transaction, CoreError> {
-    let branch_id = BranchId::Nu5;
+/// Parses raw transaction bytes into a [`Transaction`] at a given height using the provided
+/// consensus parameters to select the correct branch ID.
+pub fn parse_transaction_at_height<P: Parameters>(
+    params: &P,
+    height: BlockHeight,
+    bytes: &[u8],
+) -> Result<Transaction, CoreError> {
+    let branch_id = BranchId::for_height(params, height);
     Transaction::read(std::io::Cursor::new(bytes), branch_id)
         .map_err(|e| CoreError::Message(format!("failed to parse transaction: {e}")))
+}
+
+/// Parses raw transaction bytes assuming NU5+ semantics (branch ID [`BranchId::Nu5`]).
+/// Prefer [`parse_transaction_at_height`] when you know the block height and network.
+pub fn parse_transaction(bytes: &[u8]) -> Result<Transaction, CoreError> {
+    parse_transaction_at_height(&ConsensusNetwork::MainNetwork, BlockHeight::from(1_687_104), bytes)
 }
 
 /// Decrypts the Sapling and Orchard outputs of a transaction with a single UFVK.
