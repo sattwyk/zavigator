@@ -1,6 +1,16 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import init, * as wasmModule from '@wasm/rust_wasm';
 
@@ -17,10 +27,19 @@ type WasmContextValue = {
 const WasmContext = createContext<WasmContextValue | undefined>(undefined);
 
 export function WasmProvider({ children }: { children: ReactNode }) {
-  const [ready, setReady] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [exports, setExports] = useState<WasmInitOutput | null>(null);
   const inFlightRef = useRef<Promise<WasmInitOutput> | null>(null);
+
+  const handleSuccess = useCallback((result: WasmInitOutput) => {
+    setError(null);
+    setExports(result);
+  }, []);
+
+  const handleFailure = useCallback((err: unknown) => {
+    setError(err instanceof Error ? err : new Error('Failed to initialize WASM module'));
+    setExports(null);
+  }, []);
 
   const loadWasm = useCallback(async () => {
     if (!inFlightRef.current) {
@@ -29,25 +48,21 @@ export function WasmProvider({ children }: { children: ReactNode }) {
     return inFlightRef.current;
   }, []);
 
-  const applyResult = useCallback((promise: Promise<WasmInitOutput>, cancelledRef?: { current: boolean }) => {
+  const applyResult = useEffectEvent((promise: Promise<WasmInitOutput>, cancelledRef?: { current: boolean }) => {
     promise
       .then((result) => {
         if (cancelledRef?.current) {
           return;
         }
-        setReady(true);
-        setError(null);
-        setExports(result);
+        handleSuccess(result);
       })
       .catch((err) => {
         if (cancelledRef?.current) {
           return;
         }
-        setError(err instanceof Error ? err : new Error('Failed to initialize WASM module'));
-        setReady(false);
-        setExports(null);
+        handleFailure(err);
       });
-  }, []);
+  });
 
   useEffect(() => {
     const cancelled = { current: false };
@@ -57,17 +72,18 @@ export function WasmProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled.current = true;
     };
-  }, [applyResult, loadWasm]);
+  }, [loadWasm]);
 
   const reload = useCallback(async () => {
-    setReady(false);
     setError(null);
     setExports(null);
     inFlightRef.current = null;
     const promise = loadWasm();
-    applyResult(promise);
+    promise.then(handleSuccess).catch(handleFailure);
     await promise;
-  }, [applyResult, loadWasm]);
+  }, [handleFailure, handleSuccess, loadWasm]);
+
+  const ready = exports !== null && error === null;
 
   const value = useMemo<WasmContextValue>(
     () => ({
