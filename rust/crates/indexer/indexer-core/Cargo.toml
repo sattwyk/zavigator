@@ -4,3 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+orchard = { version = "0.11.0", default-features = false, features = ["std"] }
+sapling = { package = "sapling-crypto", version = "0.5.0", default-features = false, features = ["std"] }
+serde = { version = "1", features = ["derive"] }
+thiserror = "1"
+zcash_keys = { version = "0.12.0", default-features = false, features = ["std", "sapling", "orchard"] }
+zcash_note_encryption = { version = "0.4.1", default-features = false }
+zcash_primitives = { version = "0.26.1", default-features = false, features = ["std"] }
+zcash_protocol = { version = "0.7.1", default-features = false, features = ["std"] }
+zip32 = { version = "0.2.1", default-features = false, features = ["std"] }
