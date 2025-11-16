@@ -16,12 +16,45 @@ import init, * as wasmModule from '@wasm/rust_wasm';
 
 type WasmInitOutput = Awaited<ReturnType<typeof init>>;
 
+export type ShieldedProtocol = 'Sapling' | 'Orchard';
+export type TransferType = 'Incoming' | 'Outgoing' | 'Internal';
+export type NetworkName = 'mainnet' | 'testnet';
+
+export type DecryptedNote = {
+  txid: string;
+  index: number;
+  value: number;
+  memo: Uint8Array;
+  protocol: ShieldedProtocol;
+  transferType: TransferType;
+  height: number;
+};
+
+export type DecryptHistoryInput = {
+  viewingKey: string;
+  network: NetworkName;
+  transactions: Array<{
+    rawTx: string;
+    height: number;
+  }>;
+};
+
+type RawDecryptedNote = {
+  txid: string;
+  index: number;
+  value: number;
+  memo: number[];
+  protocol: ShieldedProtocol;
+  transfer_type: TransferType;
+  height: number;
+};
+
 type WasmContextValue = {
   ready: boolean;
   error: Error | null;
   exports: WasmInitOutput | null;
-  add: typeof wasmModule.add | null;
   reload: () => Promise<void>;
+  decryptHistory: (input: DecryptHistoryInput) => Promise<DecryptedNote[]>;
 };
 
 const WasmContext = createContext<WasmContextValue | undefined>(undefined);
@@ -85,18 +118,68 @@ export function WasmProvider({ children }: { children: ReactNode }) {
 
   const ready = exports !== null && error === null;
 
+  const decryptHistory = useCallback(
+    async (input: DecryptHistoryInput): Promise<DecryptedNote[]> => {
+      if (!ready) {
+        throw new Error('WASM module is not ready yet');
+      }
+
+      if (input.transactions.length === 0) {
+        return [];
+      }
+
+      const payload = JSON.stringify(
+        input.transactions.map((tx) => ({
+          raw_tx: tx.rawTx,
+          height: tx.height,
+        })),
+      );
+
+      try {
+        const notesJson = wasmModule.decrypt_history(input.viewingKey, payload, input.network);
+        return parseDecryptedNotes(notesJson);
+      } catch (cause) {
+        throw normalizeWasmError(cause);
+      }
+    },
+    [ready],
+  );
+
   const value = useMemo<WasmContextValue>(
     () => ({
       ready,
       error,
       exports,
-      add: ready ? wasmModule.add : null,
       reload,
+      decryptHistory,
     }),
-    [error, exports, ready, reload],
+    [decryptHistory, error, exports, ready, reload],
   );
 
   return <WasmContext.Provider value={value}>{children}</WasmContext.Provider>;
+}
+
+function parseDecryptedNotes(payload: string): DecryptedNote[] {
+  const rawNotes = JSON.parse(payload) as RawDecryptedNote[];
+  return rawNotes.map((note) => ({
+    txid: note.txid,
+    index: note.index,
+    value: note.value,
+    memo: new Uint8Array(note.memo),
+    protocol: note.protocol,
+    transferType: note.transfer_type,
+    height: note.height,
+  }));
+}
+
+function normalizeWasmError(value: unknown): Error {
+  if (value instanceof Error) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return new Error(value);
+  }
+  return new Error('WASM execution failed');
 }
 
 export function useWasm() {
